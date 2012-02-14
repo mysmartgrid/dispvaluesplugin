@@ -1,4 +1,11 @@
-TEMPLATE = app
+TARGET = dispvaluesplugin
+TEMPLATE = lib
+CONFIG += dll
+
+QT += network
+
+DESTDIR = ../
+
 SOURCES += src/main.cpp \
  src/dispval.cpp \
  src/json/json.cpp \
@@ -11,4 +18,6 @@ HEADERS += src/dispval.h \
  src/plotter/plotter.h \
  src/plotter/converter.h \
  src/plotter/qpointd.h
-CONFIG += warn_on debug
+
+RESOURCES += \
+    dispval.qrc

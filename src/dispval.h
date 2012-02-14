@@ -13,11 +13,8 @@
 #include <QTimer>
 #include <QMap>
 #include <QLCDNumber>
-//#include <QPalette>
-//#include <QNetworkAccessManager>
 #include <QtNetwork>
 #include <QUrl>
-//#include <QFile>
 #include <QDebug>
 
 #include "json/json.h"
@@ -30,106 +27,132 @@ class Plotter;
 class TimeConverter_m; //plot label formater with minutes resolution
 class TimeConverter_s; //plot label formater with seconds resolution
 
-//-----------------
-class DisplayPage : public QWidget
+namespace Msg
 {
-	public:
-		DisplayPage ( QWidget* parent = 0 );
-		QLCDNumber* digitalClk;
-		QLCDNumber* sensorval;
-		QLCDNumber* avgval1;
-		QLCDNumber* avgval2;
-		//QLCDNumber* avgval3;
-		uint valueiter;
-		uint lastval;
+    //-----------------
+    class DisplayPage : public QWidget
+    {
+        public:
+            DisplayPage ( QWidget* parent = 0 );
+            QLCDNumber* digitalClk;
+            QLCDNumber* sensorval;
+            QLCDNumber* avgval1;
+            QLCDNumber* avgval2;
+            uint valueiter;
+            uint lastval;
 
-};
-//-----------------
-class URLPage : public QWidget
-{
-	public:
-		URLPage ( QWidget* parent = 0 );
-		QLineEdit* urlLineEdit;
-		QLineEdit* sensorLineEdit;
-		
-		QLabel* statusLabel;
-		QLabel* debugLabel;
-		//QTextEdit* lastValues;
+    };
+    //-----------------
+    class URLPage : public QWidget
+    {
+            Q_OBJECT
 
-};
+        public:
+            URLPage ( QWidget* parent = 0 );
+            QLineEdit* urlLineEdit;
+            QLineEdit* sensorLineEdit1;
+            QLineEdit* sensorLineEdit2;
+            QLineEdit* sensorLineEdit3;
 
-//-----------------
-class PlotPage : public QWidget
-{
-	public:
-		PlotPage ( QWidget* parent = 0 );
-		Plotter* plotter;
+            QPushButton* sen1;
+            QPushButton* sen2;
+            QPushButton* sen3;
 
-};
+            QLabel* statusLabel;
+            QLabel* debugLabel;
 
-//----------------------
-class Display : public QDialog
-{
-		Q_OBJECT
+        public slots:
+            void buttonToggled ( bool );
 
-	public:
-		Display();
+    };
 
-	private slots:
-		void doNext();
-		void doPrev();
-		void enablestartButton();
-		void getSensorData();
-		void startRequest ( QUrl url );
-		void httpFinished();
-		void httpReadyRead();
-		void sensorErr();
-		void startDisp();
-		//void showCurrentVal();
-		void showCurrentVal_alt();
-		void showAvg();
-		void plotData ( Plotter* plotter );
+    //-----------------
+    class PlotPage : public QWidget
+    {
+        public:
+            PlotPage ( QWidget* parent = 0 );
+            Plotter* plotter;
 
-	private:
-		QPushButton* startButton;
-		QPushButton* quitButton;
-		QPushButton* next;
-		QPushButton* previous;
+    };
 
-		QStackedWidget* pages;
-		DisplayPage* displayPg;
-		URLPage* urlPg;
-		PlotPage* plotPg;
+    //----------------------
+    class Display : public QDialog
+    {
+            Q_OBJECT
 
-		QUrl url;
-		QNetworkAccessManager qnam;
-		QNetworkReply* reply;
-		//QFile* file;
-		//bool httpRequestAborted;
+        public:
+            Display();
 
-		//uint curtimestamp;
-		uint valinterval;
-		uint fetchinterval;
-		uint dlcounter;
-		
-		QMap<uint, uint>* map;
+            void clearMap(QMap<uint, uint>* map);
 
-		QTimer* tfetch;
-		QTimer* tshow;
-		//QTimer* tavg;
-		QString valConvert ( double value );
-};
+        private slots:
+            void doNext();
+            void doPrev();
+            void enablestartButton();
+            void httpFinished ( QObject* );
+            void httpReadyRead ( QObject* );
+            void sensorErr ( QObject* );
+            void startDisp();
+            void showCurrentVal_alt();
+            void showAvg();
+            void plotData_new ( Plotter* );
+            QVector<QPointD> plotData_helper ( QMap<uint, uint>*, int, uint&, uint& );
+            //void getAllSensors();
+            void buttonToggled_gatekeeper ( bool );
+            void updatePlotter();
+            void getSensor ( QNetworkReply*& , QString, QString );
+            void getAllSensors_new();
 
-class TimeConverter_s : public Converter
-{
-	public:
-		QString convert ( double );
-};
+        signals:
+            void closeDisplay();
 
-class TimeConverter_m : public Converter
-{
-	public:
-		QString convert ( double );
-};
+        private:
+            QPushButton* startButton;
+            QPushButton* quitButton;
+            QPushButton* next;
+            QPushButton* previous;
 
+            QStackedWidget* pages;
+            DisplayPage* displayPg;
+            URLPage* urlPg;
+            PlotPage* plotPg;
+
+            QUrl url;
+            QNetworkAccessManager qnam;
+            QNetworkReply* reply1;
+            QNetworkReply* reply2;
+            QNetworkReply* reply3;
+
+            uint curtimestamp;
+            uint valinterval;
+            uint fetchinterval;
+            uint dlcounter;
+            int currentsensors;
+
+            QMap<uint, uint>* map1;
+            QMap<uint, uint>* map2;
+            QMap<uint, uint>* map3;
+            //QList<QMap<uint, uint>* >* maps;
+
+            QTimer* tfetch;
+            QTimer* tshow;
+            QTimer* tplot;
+
+            QSignalMapper* finishedMapper;
+            QSignalMapper* readyreadMapper;
+            QSignalMapper* errMapper;
+    };
+
+    class TimeConverter_s : public Converter
+    {
+        public:
+            QString convert ( double );
+    };
+
+    class TimeConverter_m : public Converter
+    {
+        public:
+            QString convert ( double );
+    };
+}
 #endif // __DISPVAL_H__
