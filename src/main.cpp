@@ -5,18 +5,6 @@
 #include "dispval.h"
 #include "../../controlpanel/plugin.h"
 
-/*int main ( int argc, char **argv )
-{
-	QApplication app ( argc, argv );
-	app.setOverrideCursor( QCursor( Qt::BlankCursor ) );
-	
-	Display dlg;
-	dlg.showFullScreen();
-	dlg.show();
-	
-	return app.exec();
-}*/
-
 namespace Msg
 {
     class DispValuesPlugin : public Plugin
@@ -34,7 +22,7 @@ namespace Msg
                     delete dlg;
             }
 
-            virtual std::string init()
+            virtual std::string getName()
             {
                     //std::cout << "I am a Fun PlugIn" << std::endl;
                 return "Fluksometer";
@@ -45,7 +33,7 @@ namespace Msg
                 if ( dlg == NULL )
                 {
                     qDebug() << "Creating new Display";
-                    dlg = new Msg::Display();
+                    dlg = new Display();
                     connect ( dlg, SIGNAL( closeDisplay() ), this, SIGNAL( stopWidget() ) );
                 }
                 return dlg;
@@ -55,7 +43,7 @@ namespace Msg
                 return new QIcon(":/dispval/resources/msg.png");
             }
     private:
-            Msg::Display* dlg;
+            Display* dlg;
     };
 
     //
