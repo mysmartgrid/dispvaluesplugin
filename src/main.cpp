@@ -18,8 +18,9 @@ namespace Msg
 
             virtual ~DispValuesPlugin()
             {
+										if ( dlg )
+                    	delete dlg;
                     std::cout << "DispValuesPlugin destroyed" << std::endl;
-                    delete dlg;
             }
 
             virtual std::string getName()
@@ -34,7 +35,7 @@ namespace Msg
                 {
                     qDebug() << "Creating new Display";
                     dlg = new Display();
-                    connect ( dlg, SIGNAL( closeDisplay() ), this, SIGNAL( stopWidget() ) );
+                    //connect ( dlg, SIGNAL( closeDisplay() ), this, SIGNAL( stopWidget() ) );
                 }
                 return dlg;
             }

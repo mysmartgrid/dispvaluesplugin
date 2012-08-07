@@ -16,11 +16,13 @@
 #include <QtNetwork>
 #include <QUrl>
 #include <QDebug>
+#include <QMessageBox>
 
 #include "json/json.h"
 #include "plotter/converter.h"
 #include "plotter/plotter.h"
 #include "plotter/plotsettings.h"
+#include "spritevis/tacho.h"
 #include <cmath>
 
 class Plotter;
@@ -76,6 +78,15 @@ class PlotPage : public QWidget
 
 };
 
+//-----------------
+class VisPage : public QWidget
+{
+	public:
+		VisPage ( QWidget* parent = 0 );
+		Tacho* tacho;
+
+};
+
 //----------------------
 class Display : public QDialog
 {
@@ -103,6 +114,8 @@ class Display : public QDialog
 		void updatePlotter();
 		void getSensor ( QNetworkReply*& , QString, QString );
 		void getAllSensors_new();
+		void checkSettings();
+		void checkSettingsStatus(QNetworkReply*);
 
 	private:
 		QPushButton* startButton;
@@ -114,6 +127,7 @@ class Display : public QDialog
 		DisplayPage* displayPg;
 		URLPage* urlPg;
 		PlotPage* plotPg;
+		VisPage* visPg;
 
 		QUrl url;
 		QNetworkAccessManager qnam;
@@ -130,7 +144,6 @@ class Display : public QDialog
 		QMap<uint, uint>* map1;
 		QMap<uint, uint>* map2;
 		QMap<uint, uint>* map3;
-		//QList<QMap<uint, uint>* >* maps;
 
 		QTimer* tfetch;
 		QTimer* tshow;

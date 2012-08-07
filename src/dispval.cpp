@@ -72,27 +72,20 @@ DisplayPage::DisplayPage ( QWidget* parent ) : QWidget ( parent )
 
 URLPage::URLPage ( QWidget* parent ) : QWidget ( parent )
 {
-    //QSettings settings ( "flukso.conf", QSettings::IniFormat );
-    QSettings settings ( "/mnt/usb/flukso.conf", QSettings::IniFormat );
+	//QSettings settings ( "flukso.conf", QSettings::IniFormat );	
+	//QSettings settings ( "/mnt/usb/displayvalues/flukso.conf", QSettings::IniFormat );
+	QSettings settings ( "/mnt/usb/flukso.conf", QSettings::IniFormat );
 
 	QLabel* urlLabel = new QLabel ( tr ( "Flukso IP:Port" ) );
 	//urlLineEdit = new QLineEdit ( "131.246.191.27:8080" );
 	//urlLineEdit = new QLineEdit ( "192.168.130.21:8080" );
-	urlLineEdit = new QLineEdit ( settings.value ( "ip" ).toString() + ":" + settings.value("port").toString() );
+	urlLineEdit = new QLineEdit ( settings.value ( "ip" ).toString() + ":" + settings.value ( "port" ).toString() );
 
 	QLabel* sensorLabel = new QLabel ( tr ( "Sensors:" ) );
-
-	//sensorLineEdit1 = new QLineEdit ( settings.value ( "sensor1" ).toString() );
-	//sensorLineEdit2 = new QLineEdit ( settings.value ( "sensor2" ).toString() );
-	//sensorLineEdit3 = new QLineEdit ( settings.value ( "sensor3" ).toString() );
 
 	sensorLabel1 = new QLabel ( settings.value ( "sensor1" ).toString() );
 	sensorLabel2 = new QLabel ( settings.value ( "sensor2" ).toString() );
 	sensorLabel3 = new QLabel ( settings.value ( "sensor3" ).toString() );
-	
-	//sensorLineEdit1 = new QLineEdit ( "032ae0de09d3133583fb52da37a5a276" );
-	//sensorLineEdit2 = new QLineEdit ( "7db5114835cbce460409c6d719d0742e" );
-	//sensorLineEdit3 = new QLineEdit ( "c5bcf355c8c257763d9c33029da9b5d8" );
 
 	sen1 = new QPushButton ( "Enable" );
 	sen2 = new QPushButton ( "Enable" );
@@ -189,14 +182,27 @@ PlotPage::PlotPage ( QWidget* parent ) : QWidget ( parent )
 }
 
 
+VisPage::VisPage ( QWidget* parent ) : QWidget ( parent )
+{
+	QVBoxLayout* layout = new QVBoxLayout ( this );
+	tacho = new Tacho ( this );
+
+	layout->addWidget ( tacho );
+	layout->setContentsMargins ( 0, 0, 0, 0 );
+	layout->setSpacing ( 5 );
+}
+
+
 Display::Display() : QDialog()
 {
 	startButton = new QPushButton ( tr ( "Start" ) );
 	startButton->setDefault ( true );
 	quitButton = new QPushButton ( tr ( "Quit" ) );
 	quitButton->setAutoDefault ( false );
-	previous = new QPushButton ( tr ( "Plot" ) );
-	next = new QPushButton ( tr ( "Debug" ) );
+	previous = new QPushButton ( tr ( "< Numbers" ) );
+	next = new QPushButton ( tr ( "Plot >" ) );
+
+	previous->setEnabled ( false );
 
 	QHBoxLayout* mainbuttonBox = new QHBoxLayout();
 	mainbuttonBox->addWidget ( startButton );
@@ -209,7 +215,9 @@ Display::Display() : QDialog()
 	pages = new QStackedWidget ( this );
 	pages->addWidget ( displayPg = new DisplayPage ( pages ) ); // index 0
 	pages->addWidget ( plotPg = new PlotPage ( pages ) ); // index 1
-	pages->addWidget ( urlPg = new URLPage ( pages ) ); // index 2
+	pages->addWidget ( visPg = new VisPage ( pages ) ); // index 2
+	pages->addWidget ( urlPg = new URLPage ( pages ) ); // index 3
+
 
 	QVBoxLayout* mainlayout = new QVBoxLayout ( this );
 	mainlayout->addWidget ( pages );
@@ -226,10 +234,10 @@ Display::Display() : QDialog()
 
 	curtimestamp  = 0; //variable for the latest timestamp (for further use)
 	valinterval   = 2; //timeinterval (sec) for updating the numerical consumption display
-	fetchinterval = 8; //timeinterval (sec) for fetching sensordate from a flukso device
+	fetchinterval = 4; //timeinterval (sec) for fetching sensordate from a flukso device
 	dlcounter = 0; //counter for debug purposes
 	currentsensors = 1; //on app start only one sensor is enabled by default....
-	int plotdelay = 2; // delay on plotter updating (see httpReadyRead() method for details)
+	int plotdelay = 1; // delay on plotter updating (see httpReadyRead() method for details)
 
 
 	tfetch = new QTimer();
@@ -244,10 +252,6 @@ Display::Display() : QDialog()
 	map2 = new QMap<uint, uint>();
 	map3 = new QMap<uint, uint>();
 
-	//maps = new QList<QMap<uint, uint>* > ();
-	//maps->append ( map1 );
-	//maps->append ( map2 );
-	//maps->append ( map3 );
 
 	connect ( tshow, SIGNAL ( timeout() ), this, SLOT ( showCurrentVal_alt() ) );
 	connect ( tfetch, SIGNAL ( timeout() ), this, SLOT ( getAllSensors_new() ) );
@@ -266,9 +270,74 @@ Display::Display() : QDialog()
 	connect ( urlPg->sen3, SIGNAL ( toggled ( bool ) ), this, SLOT ( buttonToggled_gatekeeper ( bool ) ) );
 
 	qDebug() << "created..";
+
+	checkSettings();
 }
 
-// experimental method for use in conjunction with plot-update triggering..to be further implemented...
+
+//performs a quick check at app-start; if the flukso device specified in "flukso.conf" with
+//it's first sensor is reachable or not
+void Display::checkSettings()
+{
+	if ( QFile::exists ( "/mnt/usb/flukso.conf" ) ) {
+
+		QSettings settings ( "/mnt/usb/flukso.conf", QSettings::IniFormat );
+		QString ipport ( settings.value ( "ip" ).toString() + ":" + settings.value ( "port" ).toString() );
+		QString sen ( settings.value ( "sensor1" ).toString() );
+
+		QNetworkRequest req ( QUrl ( "http://" + ipport + QString ( "/sensor/%1?unit=watt&interval=minute&version=1.0" ).arg ( sen ) ) );
+
+		qDebug() << "---checker-->" << req.url().toString();
+
+		QNetworkAccessManager* manager = new QNetworkAccessManager ( this );
+		manager->get ( req );
+
+		connect ( manager, SIGNAL ( finished ( QNetworkReply* ) ), this, SLOT ( checkSettingsStatus ( QNetworkReply* ) ) );
+
+	} else {
+		qDebug() << "could not find the flukso configuration file...";
+
+		QMessageBox* msgBox = new QMessageBox ( QMessageBox::Critical, "Configuration Error", "Couldn't find the configuration file!", QMessageBox::Ok , this, Qt::Dialog | Qt::CustomizeWindowHint );
+		msgBox->move ( 0, 1 );
+		msgBox->exec();
+	}
+
+}
+
+
+//evaluates the result of the networking check at the start..
+void Display::checkSettingsStatus ( QNetworkReply* rep )
+{
+
+	if ( rep->error() == QNetworkReply::NoError ) {
+		qDebug() << "-out-->" << rep->readAll();
+		rep->deleteLater();
+		startDisp();
+	} else {
+		qDebug() << QString ( "there was a problem downloading %1 data!" ).arg ( rep->url().toString() );
+		qDebug() << "error was: " << rep->errorString();
+
+		QMessageBox* msgBox = new QMessageBox ( QMessageBox::Critical, "Connection Error", "Couldn't reach the Flukso device. Check your Settings!", QMessageBox::Abort | QMessageBox::Retry, this, Qt::Dialog | Qt::CustomizeWindowHint  );
+		msgBox->layout()->setContentsMargins ( 5, 6, 5, 6 );
+		msgBox->layout()->setSpacing ( 8 );
+		msgBox->move ( 0, 1 );
+		msgBox->setDetailedText ( ( QString ( "Sensor URL: %1\nError: %2" ).arg ( rep->url().toString() ).arg ( rep->errorString() ) ).remove ( "?unit=watt&interval=minute&version=1.0" , Qt::CaseInsensitive ) );
+		int	ret = msgBox->exec();
+
+		if ( ret == QMessageBox::Abort ) {
+			rep->deleteLater();
+			close();
+		} else if ( ret == QMessageBox::Retry ) {
+			rep->deleteLater();
+			checkSettings();
+		}
+		//QMessageBox* msgBox = new QMessageBox ( QMessageBox::Critical, "Connection Error" , "Couldn't reach the Flukso device. Check your Settings!", QMessageBox::Ok | QMessageBox::Retry , this, Qt::Dialog | Qt::CustomizeWindowHint );
+		//msgBox->exec();
+	}
+	//rep->deleteLater();
+}
+
+
 void Display::buttonToggled_gatekeeper ( bool checked )
 {
 	( checked ) ? currentsensors++ : currentsensors--;
@@ -290,9 +359,10 @@ void Display::buttonToggled_gatekeeper ( bool checked )
 	}
 }
 
+
 void Display::updatePlotter()
 {
-	qDebug() << "plotupdate triggered..";
+	//qDebug() << "plotupdate triggered..";
 	tplot->stop();
 	plotData_new ( plotPg->plotter );
 	showAvg();
@@ -304,21 +374,23 @@ void Display::doNext() // TODO: refactor button functions!
 	switch ( pages->currentIndex() ) {
 
 		case 0: //displayPg
-			pages->setCurrentWidget ( urlPg );
-			previous->setText ( tr ( "Numbers" ) );
-			next->setText ( tr ( "Plot" ) );
+			pages->setCurrentWidget ( plotPg );
+			previous->setText ( tr ( "< Numbers" ) );
+			previous->setEnabled ( true );
+			next->setText ( tr ( "Visual >" ) );
 			break;
 
 		case 1: //plotPg
-			pages->setCurrentWidget ( urlPg );
-			previous->setText ( tr ( "Numbers" ) );
-			next->setText ( tr ( "Plot" ) );
+			pages->setCurrentWidget ( visPg );
+			previous->setText ( tr ( "< Plot" ) );
+			next->setText ( tr ( "Settings >" ) );
 			break;
 
-		case 2: //urlPg
-			pages->setCurrentWidget ( plotPg );
-			previous->setText ( tr ( "Numbers" ) );
-			next->setText ( tr ( "Debug" ) );
+		case 2: //visPg
+			pages->setCurrentWidget ( urlPg );
+			previous->setText ( tr ( "< Visual" ) );
+			next->setText ( tr ( "Settings >" ) );
+			next->setEnabled ( false );
 			break;
 	}
 }
@@ -329,24 +401,24 @@ void Display::doPrev()
 
 	switch ( pages->currentIndex() ) {
 
-		case 0: //displayPg
-			pages->setCurrentWidget ( plotPg );
-			previous->setText ( tr ( "Numbers" ) );
-			next->setText ( tr ( "Debug" ) );
-			break;
-
 		case 1: //plotPg
 			pages->setCurrentWidget ( displayPg );
-			//previous->setEnabled ( false );
-			previous->setText ( tr ( "Plot" ) );
-			next->setText ( tr ( "Debug" ) );
+			previous->setEnabled ( false );
+			previous->setText ( tr ( "< Numbers" ) );
+			next->setText ( tr ( "Plot >" ) );
 			break;
 
-		case 2: //urlPg
-			pages->setCurrentWidget ( displayPg );
-			previous->setText ( tr ( "Plot" ) );
-			//next->setEnabled ( true );
-			next->setText ( tr ( "Debug" ) );
+		case 2: //visPg
+			pages->setCurrentWidget ( plotPg );
+			previous->setText ( tr ( "< Numbers" ) );
+			next->setText ( tr ( "Visual >" ) );
+			break;
+
+		case 3: //urlPg
+			pages->setCurrentWidget ( visPg );
+			previous->setText ( tr ( "< Plot" ) );
+			next->setEnabled ( true );
+			next->setText ( tr ( "Settings >" ) );
 			break;
 	}
 }
@@ -420,69 +492,6 @@ void Display::getAllSensors_new()
 		getSensor ( reply3 , urlPg->sensorLabel3->text(), "sensor3" );
 	}
 }
-
-
-/*
-void Display::getAllSensors()
-{
-	QString sensortxt = "/sensor/%1?unit=watt&interval=minute&version=1.0";
-
-	if ( !urlPg->sensorLineEdit1->text().isEmpty() && urlPg->sen1->isChecked() ) {
-
-		QNetworkRequest req ( QUrl ( "http://" + urlPg->urlLineEdit->text() + sensortxt.arg ( urlPg->sensorLineEdit1->text() ) ) );
-		req.setAttribute ( QNetworkRequest::User, QString ( "sensor1" ) );
-		//reply = qnam.get ( QNetworkRequest ( QUrl ( "http://" + urlPg->urlLineEdit->text() + sensortxt.arg ( urlPg->sensorLineEdit1->text() ) ) ) );
-		reply1 = qnam.get ( req );
-
-		//getSensor( reply1 ,urlPg->sensorLineEdit1->text(),"sensor1");
-
-		finishedMapper->setMapping ( reply1, qobject_cast<QObject*> ( reply1 ) );
-		readyreadMapper->setMapping ( reply1, qobject_cast<QObject*> ( reply1 ) );
-		errMapper->setMapping ( reply1, qobject_cast<QObject*> ( reply1 ) );
-
-		connect ( reply1, SIGNAL ( finished() ), finishedMapper, SLOT ( map() ) );
-		connect ( reply1, SIGNAL ( readyRead() ), readyreadMapper, SLOT ( map() ) );
-		connect ( reply1, SIGNAL ( error ( QNetworkReply::NetworkError ) ), errMapper, SLOT ( map() ) );
-
-	}
-
-	if ( !urlPg->sensorLineEdit2->text().isEmpty() && urlPg->sen2->isChecked() ) {
-
-		QNetworkRequest req ( QUrl ( "http://" + urlPg->urlLineEdit->text() + sensortxt.arg ( urlPg->sensorLineEdit2->text() ) ) );
-		req.setAttribute ( QNetworkRequest::User, QString ( "sensor2" ) );
-		//reply2 = qnam.get ( QNetworkRequest ( QUrl ( "http://" + urlPg->urlLineEdit->text() + sensortxt.arg(urlPg->sensorLineEdit2->text()) ) ) );
-		reply2 = qnam.get ( req );
-
-		//getSensor( reply2 ,urlPg->sensorLineEdit2->text(),"sensor2");
-
-		finishedMapper->setMapping ( reply2, qobject_cast<QObject*> ( reply2 ) );
-		readyreadMapper->setMapping ( reply2, qobject_cast<QObject*> ( reply2 ) );
-		errMapper->setMapping ( reply2, qobject_cast<QObject*> ( reply2 ) );
-
-		connect ( reply2, SIGNAL ( finished() ), finishedMapper, SLOT ( map() ) );
-		connect ( reply2, SIGNAL ( readyRead() ), readyreadMapper, SLOT ( map() ) );
-		connect ( reply2, SIGNAL ( error ( QNetworkReply::NetworkError ) ), errMapper, SLOT ( map() ) );
-
-	}
-
-	if ( !urlPg->sensorLineEdit3->text().isEmpty() && urlPg->sen3->isChecked() ) {
-
-		QNetworkRequest req ( QUrl ( "http://" + urlPg->urlLineEdit->text() + sensortxt.arg ( urlPg->sensorLineEdit3->text() ) ) );
-		req.setAttribute ( QNetworkRequest::User, QString ( "sensor3" ) );
-		//reply3 = qnam.get ( QNetworkRequest ( QUrl ( "http://" + urlPg->urlLineEdit->text() + sensortxt.arg(urlPg->sensorLineEdit3->text()) ) ) );
-		reply3 = qnam.get ( req );
-
-		finishedMapper->setMapping ( reply3, qobject_cast<QObject*> ( reply3 ) );
-		readyreadMapper->setMapping ( reply3, qobject_cast<QObject*> ( reply3 ) );
-		errMapper->setMapping ( reply3, qobject_cast<QObject*> ( reply3 ) );
-
-		connect ( reply3, SIGNAL ( finished() ), finishedMapper, SLOT ( map() ) );
-		connect ( reply3, SIGNAL ( readyRead() ), readyreadMapper, SLOT ( map() ) );
-		connect ( reply3, SIGNAL ( error ( QNetworkReply::NetworkError ) ), errMapper, SLOT ( map() ) );
-	}
-
-}
-*/
 
 
 void Display::httpFinished ( QObject* repn )
@@ -564,7 +573,7 @@ void Display::httpReadyRead ( QObject* repn )
 			qDebug() << sensormark << "data map size was cut down! new size: " << map->size();
 		}
 
-		urlPg->debugLabel->setText ( tr ( "Map sizes are: %1 | %2 | %3" ).arg ( map1->size() ).arg ( map2->size() ).arg ( map3->size() ) );
+		urlPg->debugLabel->setText ( tr ( "Map sizes: %1 | %2 | %3" ).arg ( map1->size() ).arg ( map2->size() ).arg ( map3->size() ) );
 
 	}
 
@@ -682,6 +691,7 @@ void Display::showCurrentVal_alt()
 	displayPg->digitalClk->display (  dtime.toString ( "hh:mm:ss" ) );
 	displayPg->sensorval->display (  QString::number ( map1->value ( showts ) ) );
 
+	visPg->tacho->setValue ( map1->value ( showts ) );
 	//qDebug() << "show:" << show;
 	//qDebug() << "mapvals: "  <<  map1->value ( show ) << "\n";
 }
