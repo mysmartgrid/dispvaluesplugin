@@ -3,7 +3,7 @@
 #include <QIcon>
 
 #include "dispval.h"
-#include "../../controlpanel/plugin.h"
+#include "controlpanel/plugin.h"
 
 namespace Msg
 {

@@ -9,6 +9,7 @@
 class Converter
 {
 	public:
+		virtual ~Converter() {}
 		virtual QString convert ( double ) = 0;
 };
 
